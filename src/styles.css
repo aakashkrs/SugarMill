@@ -1,22 +1,15 @@
-
 /* =========================================================
-   RESPONSIVE LOGIN PAGE
+   LOGIN PAGE
    ========================================================= */
 
 .login-page {
   min-height: 100vh;
   min-height: 100dvh;
-  width: 100%;
   background: #101820;
-
   display: grid;
   place-items: center;
-
   padding: 20px;
   box-sizing: border-box;
-
-  overflow-x: hidden;
-  overflow-y: auto;
 }
 
 
@@ -25,20 +18,13 @@
    ========================================================= */
 
 .login-card {
-  width: 100%;
-  max-width: 410px;
-
+  width: 410px;
+  max-width: 100%;
   background: #fff;
-
   border-radius: 17px;
-
   padding: 34px;
-
   box-sizing: border-box;
-
   box-shadow: 0 25px 70px rgba(0, 0, 0, 0.28);
-
-  margin: auto;
 }
 
 
@@ -47,22 +33,7 @@
    ========================================================= */
 
 .login-logo {
-  width: 42px;
-  height: 42px;
-
-  margin: 0 auto;
-
-  display: grid;
-  place-items: center;
-
-  border-radius: 12px;
-
-  background: #e4b72c;
-  color: #101820;
-
-  font-weight: 900;
-
-  max-width: 100%;
+  margin: auto;
 }
 
 
@@ -72,15 +43,9 @@
 
 .login-title {
   text-align: center;
-
   font-size: 23px;
   font-weight: 800;
-
-  margin: 15px 0 0;
-
-  line-height: 1.3;
-
-  word-break: break-word;
+  margin-top: 15px;
 }
 
 
@@ -90,96 +55,54 @@
 
 .login-subtitle {
   text-align: center;
-
   color: #89949d;
-
   font-size: 12px;
-
   margin: 5px 0 25px;
-
-  line-height: 1.5;
 }
 
 
 /* =========================================================
-   LOGIN LABELS
+   LOGIN LABEL
    ========================================================= */
 
 .login-card label {
   display: block;
-
   font-size: 11px;
   font-weight: 700;
-
   margin: 14px 0 6px;
-
-  color: #17212b;
 }
 
 
 /* =========================================================
-   LOGIN INPUTS
+   LOGIN INPUT
    ========================================================= */
 
 .login-card input {
   width: 100%;
-
-  box-sizing: border-box;
-
   padding: 11px 12px;
-
   border: 1px solid #dfe4e7;
-
   border-radius: 8px;
-
   outline: none;
-
-  font-size: 14px;
-
-  background: #fff;
-  color: #17212b;
-
-  min-width: 0;
-
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
+  box-sizing: border-box;
 }
 
 .login-card input:focus {
   border-color: #b99a20;
-
-  box-shadow: 0 0 0 2px rgba(185, 154, 32, 0.12);
-}
-
-.login-card input::placeholder {
-  color: #a3adb5;
 }
 
 
 /* =========================================================
-   ERROR MESSAGE
+   ERROR BOX
    ========================================================= */
 
 .error-box {
-  width: 100%;
-
-  box-sizing: border-box;
-
   margin: 12px 0;
-
   background: #fdecec;
   color: #bb3b3b;
-
   padding: 9px;
-
   border-radius: 7px;
-
   font-size: 11px;
-
-  line-height: 1.5;
-
-  overflow-wrap: break-word;
+  box-sizing: border-box;
 }
 
 
@@ -188,43 +111,9 @@
    ========================================================= */
 
 .login-card .primary-btn {
-  width: 100%;
-
-  box-sizing: border-box;
-
   margin-top: 18px;
-
-  min-height: 44px;
-
-  padding: 12px;
-
-  border: 0;
-  border-radius: 8px;
-
-  background: #18232d;
-  color: #fff;
-
-  font-weight: 700;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  gap: 7px;
-
-  cursor: pointer;
-
-  transition:
-    background 0.2s ease,
-    transform 0.1s ease;
-}
-
-.login-card .primary-btn:hover {
-  background: #253542;
-}
-
-.login-card .primary-btn:active {
-  transform: scale(0.99);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 
@@ -233,23 +122,13 @@
    ========================================================= */
 
 .demo-credentials {
-  width: 100%;
-
-  box-sizing: border-box;
-
   margin-top: 20px;
-
   background: #f5f6f7;
-
   border-radius: 9px;
-
   padding: 12px;
-
   font-size: 10px;
-
   color: #707c85;
-
-  overflow-wrap: break-word;
+  box-sizing: border-box;
 }
 
 .demo-credentials strong,
@@ -259,113 +138,32 @@
 
 .demo-credentials span {
   margin-top: 3px;
-
   font-family: monospace;
-
-  overflow-wrap: anywhere;
 }
 
 
 /* =========================================================
-   TABLET
-   ========================================================= */
-
-@media (max-width: 768px) {
-
-  .login-page {
-    padding: 16px;
-  }
-
-  .login-card {
-    width: 100%;
-
-    max-width: 400px;
-
-    padding: 30px 26px;
-
-    border-radius: 16px;
-  }
-
-}
-
-
-/* =========================================================
-   MOBILE
+   MOBILE RESPONSIVE
    ========================================================= */
 
 @media (max-width: 480px) {
 
   .login-page {
-    min-height: 100dvh;
-
     padding: 12px;
-
-    place-items: center;
   }
 
   .login-card {
     width: 100%;
-
-    max-width: 100%;
-
-    padding: 26px 20px;
-
-    border-radius: 14px;
-  }
-
-  .login-logo {
-    width: 40px;
-    height: 40px;
-  }
-
-  .login-title {
-    font-size: 21px;
-
-    margin-top: 13px;
-  }
-
-  .login-subtitle {
-    font-size: 11px;
-
-    margin: 5px 0 20px;
-  }
-
-  .login-card label {
-    font-size: 11px;
-
-    margin-top: 12px;
+    max-width: 410px;
+    padding: 28px 20px;
   }
 
   .login-card input {
     width: 100%;
-
-    padding: 12px;
-
-    font-size: 16px;
-
-    min-height: 44px;
   }
 
   .login-card .primary-btn {
     width: 100%;
-
-    min-height: 44px;
-
-    margin-top: 16px;
-
-    padding: 12px;
-  }
-
-  .error-box {
-    font-size: 11px;
-
-    padding: 9px;
-  }
-
-  .demo-credentials {
-    font-size: 10px;
-
-    padding: 11px;
   }
 
 }
@@ -383,58 +181,14 @@
 
   .login-card {
     width: 100%;
-
-    padding: 22px 16px;
-
-    border-radius: 12px;
-  }
-
-  .login-logo {
-    width: 38px;
-    height: 38px;
-
-    border-radius: 10px;
-  }
-
-  .login-title {
-    font-size: 20px;
-  }
-
-  .login-subtitle {
-    font-size: 10px;
-
-    margin-bottom: 18px;
-  }
-
-  .login-card label {
-    font-size: 10px;
-
-    margin-top: 11px;
-  }
-
-  .login-card input {
-    padding: 11px;
-
-    font-size: 16px;
-  }
-
-  .login-card .primary-btn {
-    min-height: 43px;
-
-    padding: 11px;
-  }
-
-  .demo-credentials {
-    padding: 10px;
-
-    font-size: 9px;
+    padding: 24px 16px;
   }
 
 }
 
 
 /* =========================================================
-   VERY SMALL PHONES
+   VERY SMALL MOBILE
    ========================================================= */
 
 @media (max-width: 320px) {
@@ -444,23 +198,7 @@
   }
 
   .login-card {
-    padding: 20px 13px;
-
-    border-radius: 11px;
-  }
-
-  .login-title {
-    font-size: 19px;
-  }
-
-  .login-subtitle {
-    font-size: 10px;
-  }
-
-  .login-card input {
-    font-size: 16px;
-
-    padding: 10px;
+    padding: 22px 14px;
   }
 
 }
