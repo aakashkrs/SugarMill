@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import ReactDOM from "react-dom/client";
 import {
   LayoutDashboard,
@@ -74,6 +74,16 @@ function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [page, setPage] = useState("Dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const displayDate = useMemo(() => {
+    if (appliedFilter) return appliedFilter.date;
+    const today = new Date();
+    return today.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }, [appliedFilter]);
 
   if (!authenticated) {
     return <Login onLogin={() => setAuthenticated(true)} />;
@@ -213,7 +223,7 @@ function App() {
             <div className="system-status">
               <span className="status-dot"></span> System Online
             </div>
-            <div className="date-chip">12 Aug 2026</div>
+            <div className="date-chip">{displayDate}</div>
             <div className="avatar">A</div>
           </div>
         </header>
@@ -288,8 +298,11 @@ function StatCard({ icon: Icon, label, value, sub, trend }) {
 }
 
 function Dashboard({ filter }){
-  const running = belts.filter((b) => b.status === "Running").length;
-   return (
+  const running = useMemo(
+    () => belts.filter((b) => b.status === "Running").length,
+    []
+  );
+  return (
     <>
       {filter && (
         <div className="active-filter">
