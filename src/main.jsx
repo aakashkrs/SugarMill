@@ -21,6 +21,15 @@ import {
   CheckCircle2,
   CircleOff,
   RefreshCw,
+  Wifi,
+  WifiOff,
+  AlertCircle,
+  Hourglass,
+  Play,
+  XCircle,
+  Eye,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -38,15 +47,59 @@ import "./styles.css";
 import {
   mockSummary,
   hourlyProduction,
+  yesterdayProduction,
+  dailyProduction,
+  allTimeProduction,
   godowns,
   belts,
+  cameras,
   alerts,
   recentEvents,
+  anomalies,
+  peakHour,
+  downtime,
 } from "./data/mockData";
 import { login } from "./services/api";
 
 const ADMIN_EMAIL = "admin@sugarmill.local";
 const ADMIN_PASSWORD = "Admin@123";
+
+function getTimeRangeDefaults(range) {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  const current = `${hh}:${mm}`;
+
+  switch (range) {
+    case "last-1-hour": {
+      const d = new Date(now.getTime() - 60 * 60 * 1000);
+      return {
+        from: `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`,
+        to: current,
+      };
+    }
+    case "last-3-hours": {
+      const d = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+      return {
+        from: `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`,
+        to: current,
+      };
+    }
+    case "last-6-hours": {
+      const d = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+      return {
+        from: `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`,
+        to: current,
+      };
+    }
+    case "whole-day":
+      return { from: "00:00", to: "23:59" };
+    case "custom":
+      return { from: "00:00", to: "23:59" };
+    default:
+      return { from: "00:00", to: "23:59" };
+  }
+}
 
 function App() {
   const [filterDate, setFilterDate] = useState("2026-08-12");
@@ -71,9 +124,27 @@ function App() {
     setToTime("23:59");
     setAppliedFilter(null);
   };
+
+  const handleTimeRangeChange = (e) => {
+    const range = e.target.value;
+    setTimeRange(range);
+    if (range !== "custom") {
+      const times = getTimeRangeDefaults(range);
+      setFromTime(times.from);
+      setToTime(times.to);
+      setAppliedFilter({
+        date: filterDate,
+        timeRange: range,
+        from: times.from,
+        to: times.to,
+      });
+    }
+  };
+
   const [authenticated, setAuthenticated] = useState(false);
   const [page, setPage] = useState("Dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedGodown, setSelectedGodown] = useState(null);
 
   const displayDate = useMemo(() => {
     if (appliedFilter) return appliedFilter.date;
@@ -92,8 +163,8 @@ function App() {
   const logout = () => setAuthenticated(false);
 
   const pages = {
-    Dashboard: <Dashboard filter={appliedFilter} />,
-    Godowns: <Godowns />,
+    Dashboard: <Dashboard filter={appliedFilter} onGodownClick={setSelectedGodown} />,
+    Godowns: <Godowns onGodownClick={setSelectedGodown} />,
     Production: <Production />,
     Belts: <Belts />,
     Alerts: <Alerts />,
@@ -157,8 +228,11 @@ function App() {
 
           <select
             value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value)}
+            onChange={handleTimeRangeChange}
           >
+            <option value="last-1-hour">Last 1 Hour</option>
+            <option value="last-3-hours">Last 3 Hours</option>
+            <option value="last-6-hours">Last 6 Hours</option>
             <option value="whole-day">Whole Day</option>
             <option value="custom">Custom Time</option>
           </select>
@@ -166,15 +240,12 @@ function App() {
           {timeRange === "custom" && (
             <>
               <label>From</label>
-
               <input
                 type="time"
                 value={fromTime}
                 onChange={(e) => setFromTime(e.target.value)}
               />
-
               <label>To</label>
-
               <input
                 type="time"
                 value={toTime}
@@ -183,9 +254,11 @@ function App() {
             </>
           )}
 
-          <button className="apply-filter-btn" onClick={applyFilter}>
-            Apply Filter
-          </button>
+          {timeRange === "custom" && (
+            <button className="apply-filter-btn" onClick={applyFilter}>
+              Apply Filter
+            </button>
+          )}
 
           <button className="clear-filter-btn" onClick={clearFilter}>
             Clear
@@ -229,6 +302,10 @@ function App() {
         </header>
         <section className="content">{pages[page]}</section>
       </main>
+
+      {selectedGodown && (
+        <GodownModal godown={selectedGodown} onClose={() => setSelectedGodown(null)} />
+      )}
     </div>
   );
 }
@@ -297,11 +374,39 @@ function StatCard({ icon: Icon, label, value, sub, trend }) {
   );
 }
 
-function Dashboard({ filter }){
+function Dashboard({ filter, onGodownClick }) {
   const running = useMemo(
     () => belts.filter((b) => b.status === "Running").length,
     []
   );
+  const slow = useMemo(
+    () => belts.filter((b) => b.status === "Slow").length,
+    []
+  );
+  const stopped = useMemo(
+    () => belts.filter((b) => b.status === "Stopped").length,
+    []
+  );
+  const onlineCameras = useMemo(
+    () => cameras.filter((c) => c.status === "Online").length,
+    []
+  );
+
+  const mergedHourly = useMemo(
+    () =>
+      hourlyProduction.map((h, i) => ({
+        hour: h.hour,
+        today: h.bags,
+        yesterday: yesterdayProduction[i]?.bags || 0,
+      })),
+    []
+  );
+
+  const maxBags = useMemo(
+    () => Math.max(...hourlyProduction.map((h) => h.bags)),
+    []
+  );
+
   return (
     <>
       {filter && (
@@ -309,7 +414,6 @@ function Dashboard({ filter }){
           <span>
             Date: <strong>{filter.date}</strong>
           </span>
-
           <span>
             Time: <strong>{filter.from} - {filter.to}</strong>
           </span>
@@ -321,55 +425,56 @@ function Dashboard({ filter }){
           <h2>Factory Overview</h2>
           <p>Monitor bag counting, production and conveyor performance.</p>
         </div>
-
         <button className="secondary-btn">
-          <RefreshCw size={16}/> Refresh
+          <RefreshCw size={16} /> Refresh
         </button>
       </div>
 
-      <div className="stats-grid">
+      <div className="kpi-grid">
         <StatCard
           icon={Package}
-          label="Total Bags Today"
+          label="Total Bags"
           value={mockSummary.totalBags.toLocaleString()}
           sub="Across all godowns"
-          trend="+8.4%"
         />
         <StatCard
           icon={Gauge}
-          label="Current Production Rate"
-          value={`${mockSummary.rate.toLocaleString()}/hr`}
+          label="Bags / Hour"
+          value={`${mockSummary.rate.toLocaleString()}`}
           sub={`${mockSummary.perMinute} bags/min`}
-          trend="+5.2%"
         />
         <StatCard
-          icon={TrendingUp}
-          label="Target Achievement"
-          value={`${mockSummary.achievement}%`}
-          sub={`${mockSummary.target.toLocaleString()} target bags`}
+          icon={Clock3}
+          label="Peak Hour"
+          value={peakHour.hour}
+          sub={`${peakHour.bags.toLocaleString()} bags`}
         />
         <StatCard
           icon={Activity}
           label="Active Belts"
           value={`${running}/${belts.length}`}
-          sub="Conveyor status"
+          sub={`${slow} slow · ${stopped} stopped`}
+        />
+        <StatCard
+          icon={CircleOff}
+          label="Downtime"
+          value={`${downtime.today} min`}
+          sub={`vs ${downtime.yesterday} min yesterday`}
         />
       </div>
 
       <div className="grid-2">
-        <Panel title="Hourly Production" subtitle="Bags counted by hour">
+        <Panel title="Hourly Production" subtitle="Today vs Yesterday comparison">
           <div className="chart-wrap">
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={hourlyProduction}>
+              <AreaChart data={mergedHourly}>
                 <defs>
-                  <linearGradient
-                    id="productionFill"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop offset="0%" stopOpacity={0.25} />
+                  <linearGradient id="todayFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopOpacity={0.3} />
+                    <stop offset="100%" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="yesterdayFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopOpacity={0.15} />
                     <stop offset="100%" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
@@ -377,69 +482,131 @@ function Dashboard({ filter }){
                 <XAxis dataKey="hour" />
                 <YAxis />
                 <Tooltip />
+                <Legend />
                 <Area
                   type="monotone"
-                  dataKey="bags"
+                  dataKey="today"
+                  stroke="#2563eb"
                   strokeWidth={2.5}
-                  fill="url(#productionFill)"
+                  fill="url(#todayFill)"
+                  name="Today"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="yesterday"
+                  stroke="#94a3b8"
+                  strokeWidth={2}
+                  fill="url(#yesterdayFill)"
+                  name="Yesterday"
                 />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </Panel>
 
-        <Panel title="Godown Production" subtitle="Today's bag count">
+        <Panel title="Godown Production" subtitle="Click a row for details">
           <div className="godown-list">
-            {godowns.map((g) => (
-              <div className="godown-row" key={g.id}>
-                <div className="godown-name">
-                  <div className="mini-icon">
-                    <Warehouse size={17} />
+            {godowns.map((g) => {
+              const pct = Math.min(100, Math.round((g.bags / g.target) * 100));
+              return (
+                <div
+                  className="godown-row clickable"
+                  key={g.id}
+                  onClick={() => onGodownClick(g)}
+                >
+                  <div className="godown-name">
+                    <div className="mini-icon">
+                      <Warehouse size={17} />
+                    </div>
+                    <div>
+                      <strong>{g.name}</strong>
+                      <small>{g.belts} conveyor belts</small>
+                    </div>
                   </div>
-                  <div>
-                    <strong>{g.name}</strong>
-                    <small>{g.belts} conveyor belts</small>
+                  <div className="godown-count">
+                    {g.bags.toLocaleString()} <small>bags</small>
+                  </div>
+                  <div className="godown-pct">{pct}%</div>
+                  <div className="progress">
+                    <span style={{ width: `${pct}%` }} />
                   </div>
                 </div>
-                <div className="godown-count">
-                  {g.bags.toLocaleString()} <small>bags</small>
+              );
+            })}
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid-2">
+        <Panel title="Live Belt Status" subtitle="Current operating condition">
+          <div className="live-belts">
+            {belts.map((b) => (
+              <div className="live-belt-row" key={b.id}>
+                <div className="live-belt-main">
+                  <strong>{b.id}</strong>
+                  <span>{b.name}</span>
                 </div>
-                <div className="progress">
-                  <span style={{ width: `${g.percent}%` }} />
+                <Status status={b.status} />
+                <div className="live-belt-bags">
+                  {b.bags.toLocaleString()} <small>bags</small>
                 </div>
+                <div className="live-belt-rate">{b.rate}/hr</div>
               </div>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="Camera / Counting Health" subtitle="System online status">
+          <div className="camera-grid">
+            {cameras.map((c) => (
+              <CameraCard key={c.id} camera={c} />
             ))}
           </div>
         </Panel>
       </div>
 
       <div className="grid-2">
-        <Panel
-          title="Conveyor Belt Status"
-          subtitle="Current operating condition"
-        >
-          <div className="belt-table">
-            {belts.slice(0, 6).map((b) => (
-              <BeltRow key={b.id} belt={b} />
+        <Panel title="Alerts & Anomalies" subtitle="Belt stoppage, production, camera issues">
+          <div className="anomaly-list">
+            {anomalies.slice(0, 4).map((a) => (
+              <AnomalyCard key={a.id} anomaly={a} />
             ))}
           </div>
         </Panel>
-        <Panel title="Recent Counting Events" subtitle="Latest detected bags">
-          <div className="events">
-            {recentEvents.map((e) => (
-              <div className="event-row" key={e.id}>
-                <div className="event-icon">
-                  <Package size={16} />
-                </div>
-                <div>
-                  <strong>{e.bag}</strong>
-                  <small>{e.location}</small>
-                </div>
-                <span className="event-time">
-                  <Clock3 size={13} /> {e.time}
-                </span>
-              </div>
-            ))}
+
+        <Panel title="Peak Production Hour" subtitle="Best performing hour today">
+          <div className="peak-hour-card">
+            <div className="peak-hour-icon">
+              <TrendingUp size={28} />
+            </div>
+            <div className="peak-hour-info">
+              <div className="peak-hour-value">{peakHour.hour}</div>
+              <div className="peak-hour-label">Peak Hour</div>
+              <div className="peak-hour-bags">{peakHour.bags.toLocaleString()} bags counted</div>
+            </div>
+            <div className="peak-hour-chart">
+              <ResponsiveContainer width="100%" height={120}>
+                <AreaChart data={hourlyProduction}>
+                  <defs>
+                    <linearGradient id="peakFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopOpacity={0.2} />
+                      <stop offset="100%" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="hour" tick={{fontSize: 10}} />
+                  <YAxis hide />
+                  <Tooltip />
+                  <Area
+                    type="monotone"
+                    dataKey="bags"
+                    stroke="#2563eb"
+                    strokeWidth={2}
+                    fill="url(#peakFill)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </Panel>
       </div>
@@ -447,7 +614,7 @@ function Dashboard({ filter }){
   );
 }
 
-function Godowns() {
+function Godowns({ onGodownClick }) {
   return (
     <>
       <div className="page-heading">
@@ -458,7 +625,11 @@ function Godowns() {
       </div>
       <div className="godown-cards">
         {godowns.map((g) => (
-          <div className="large-godown" key={g.id}>
+          <div
+            className="large-godown clickable"
+            key={g.id}
+            onClick={() => onGodownClick(g)}
+          >
             <div className="large-godown-head">
               <div className="warehouse-symbol">
                 <Warehouse size={25} />
@@ -500,15 +671,68 @@ function Godowns() {
   );
 }
 
+function GodownModal({ godown, onClose }) {
+  if (!godown) return null;
+  const pct = Math.min(100, Math.round((godown.bags / godown.target) * 100));
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div className="modal-title">
+            <Warehouse size={22} />
+            <h3>{godown.name}</h3>
+          </div>
+          <button className="modal-close" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+        <div className="modal-body">
+          <div className="modal-metric">
+            <span>Total Bags</span>
+            <strong>{godown.bags.toLocaleString()}</strong>
+          </div>
+          <div className="modal-metric">
+            <span>Target</span>
+            <strong>{godown.target.toLocaleString()}</strong>
+          </div>
+          <div className="modal-metric">
+            <span>Achievement</span>
+            <strong>{pct}%</strong>
+          </div>
+          <div className="modal-metric">
+            <span>Rate</span>
+            <strong>{godown.rate}/hr</strong>
+          </div>
+          <div className="modal-metric">
+            <span>Conveyor Belts</span>
+            <strong>{godown.belts}</strong>
+          </div>
+          <div className="progress large modal-progress">
+            <span style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Production() {
-  const daily = [
-    { day: "07 Aug", bags: 21450 },
-    { day: "08 Aug", bags: 23120 },
-    { day: "09 Aug", bags: 22880 },
-    { day: "10 Aug", bags: 24220 },
-    { day: "11 Aug", bags: 23840 },
-    { day: "12 Aug", bags: mockSummary.totalBags },
-  ];
+  const [view, setView] = useState("daily");
+
+  const getChartData = () => {
+    switch (view) {
+      case "hourly":
+        return hourlyProduction.map((h) => ({ hour: h.hour, bags: h.bags }));
+      case "all-time":
+        return allTimeProduction;
+      default:
+        return dailyProduction;
+    }
+  };
+
+  const getXKey = () => (view === "hourly" ? "hour" : "day");
+
   return (
     <>
       <div className="page-heading">
@@ -516,22 +740,37 @@ function Production() {
           <h2>Production Analytics</h2>
           <p>Track production trends and target performance.</p>
         </div>
-        <select className="filter">
-          <option>Today</option>
-          <option>Last 7 days</option>
-          <option>Last 30 days</option>
-        </select>
+        <div className="view-tabs">
+          <button
+            className={`view-tab ${view === "daily" ? "active" : ""}`}
+            onClick={() => setView("daily")}
+          >
+            Daily
+          </button>
+          <button
+            className={`view-tab ${view === "hourly" ? "active" : ""}`}
+            onClick={() => setView("hourly")}
+          >
+            Hourly
+          </button>
+          <button
+            className={`view-tab ${view === "all-time" ? "active" : ""}`}
+            onClick={() => setView("all-time")}
+          >
+            All-Time
+          </button>
+        </div>
       </div>
-      <Panel title="Daily Production" subtitle="Historical bag count">
+      <Panel title="Production Trend" subtitle="Historical bag count">
         <div className="chart-wrap tall">
           <ResponsiveContainer width="100%" height={340}>
-            <BarChart data={daily}>
+            <BarChart data={getChartData()}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="day" />
+              <XAxis dataKey={getXKey()} />
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="bags" name="Bags" radius={[5, 5, 0, 0]} />
+              <Bar dataKey="bags" name="Bags" radius={[5, 5, 0, 0]} fill="#2563eb" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -599,7 +838,7 @@ function Belts() {
             <div className="belt-footer">
               <span>Last event {b.lastEvent}</span>
               <span className={b.status === "Running" ? "green" : "red"}>
-                {b.status === "Running" ? "Operational" : "Needs attention"}
+                {b.status === "Running" ? "Operational" : b.status === "Slow" ? "Slow" : "Needs attention"}
               </span>
             </div>
           </div>
@@ -719,13 +958,17 @@ function Panel({ title, subtitle, children }) {
     </div>
   );
 }
+
 function Status({ status }) {
+  const cls = status === "Running" ? "running" : status === "Slow" ? "slow" : "stopped";
+  const icon = status === "Running" ? <Play size={12} /> : status === "Slow" ? <Hourglass size={12} /> : <XCircle size={12} />;
   return (
-    <span className={`status ${status === "Running" ? "running" : "stopped"}`}>
-      <span /> {status}
+    <span className={`status ${cls}`}>
+      <span>{icon}</span> {status}
     </span>
   );
 }
+
 function BeltRow({ belt }) {
   return (
     <div className="belt-row">
@@ -736,6 +979,51 @@ function BeltRow({ belt }) {
       <Status status={belt.status} />
       <strong>{belt.bags.toLocaleString()}</strong>
       <span>{belt.rate}/hr</span>
+    </div>
+  );
+}
+
+function CameraCard({ camera }) {
+  const statusMap = {
+    Online: { icon: Wifi, color: "success" },
+    Warning: { icon: AlertCircle, color: "warning" },
+    Offline: { icon: WifiOff, color: "danger" },
+  };
+  const { icon: Icon, color } = statusMap[camera.status] || statusMap.Offline;
+
+  return (
+    <div className={`camera-card ${color}`}>
+      <div className="camera-card-icon">
+        <Icon size={18} />
+      </div>
+      <div className="camera-card-info">
+        <strong>{camera.id}</strong>
+        <span>Belt {camera.belt}</span>
+      </div>
+      <div className="camera-card-status">{camera.status}</div>
+      {camera.note && <div className="camera-card-note">{camera.note}</div>}
+    </div>
+  );
+}
+
+function AnomalyCard({ anomaly }) {
+  const iconMap = {
+    belt: AlertTriangle,
+    production: TrendingUp,
+    camera: Camera,
+  };
+  const Icon = iconMap[anomaly.type] || AlertTriangle;
+  return (
+    <div className={`anomaly-card ${anomaly.level}`}>
+      <div className={`anomaly-icon ${anomaly.level}`}>
+        <Icon size={18} />
+      </div>
+      <div className="anomaly-content">
+        <strong>{anomaly.title}</strong>
+        <p>{anomaly.description}</p>
+        <small>{anomaly.time}</small>
+      </div>
+      <span className={`anomaly-badge ${anomaly.level}`}>{anomaly.level}</span>
     </div>
   );
 }
