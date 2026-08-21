@@ -2133,3 +2133,290 @@ button {
     font-size: 22px;
   }
 }
+
+/* ========== THEME TOGGLE ========== */
+.theme-toggle {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius);
+  display: grid;
+  place-items: center;
+  background: var(--bg-body);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.theme-toggle:hover {
+  background: var(--border-light);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+/* ========== DARK THEME ========== */
+[data-theme="dark"] {
+  --bg-body: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-sidebar: #020617;
+  --bg-sidebar-hover: #1e293b;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --border: #334155;
+  --border-light: #1e293b;
+  --accent: #3b82f6;
+  --accent-light: #1e3a5f;
+  --accent-dark: #2563eb;
+  --success: #10b981;
+  --success-bg: #064e3b;
+  --warning: #f59e0b;
+  --warning-bg: #78350f;
+  --danger: #ef4444;
+  --danger-bg: #7f1d1d;
+}
+
+[data-theme="dark"] body {
+  background: var(--bg-body);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .topbar {
+  background: rgba(30, 41, 59, 0.95);
+  border-bottom-color: var(--border);
+}
+
+[data-theme="dark"] .date-chip {
+  background: var(--bg-sidebar-hover);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .login-page {
+  background: linear-gradient(135deg, #020617 0%, #0f172a 100%);
+}
+
+[data-theme="dark"] .login-card {
+  background: #1e293b;
+  border-color: var(--border);
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .login-card label {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .login-card input {
+  background: var(--bg-sidebar-hover);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .login-card input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+[data-theme="dark"] .demo-credentials {
+  background: var(--bg-sidebar-hover);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] .demo-credentials strong {
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .demo-credentials span {
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .mini-icon {
+  background: var(--bg-sidebar-hover);
+  border-color: var(--border);
+}
+
+[data-theme="dark"] .godown-row {
+  background: var(--bg-sidebar-hover);
+}
+
+[data-theme="dark"] .godown-row:hover {
+  background: #263346;
+}
+
+[data-theme="dark"] .belt-row {
+  border-bottom-color: var(--border);
+}
+
+[data-theme="dark"] .belt-row:hover {
+  background: var(--bg-body);
+}
+
+[data-theme="dark"] .event-row {
+  border-bottom-color: var(--border);
+}
+
+[data-theme="dark"] .event-row:hover {
+  background: var(--bg-body);
+}
+
+[data-theme="dark"] .event-icon {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+[data-theme="dark"] .camera-card {
+  background: var(--bg-sidebar-hover);
+}
+
+[data-theme="dark"] .camera-card:hover {
+  background: #263346;
+}
+
+[data-theme="dark"] .anomaly-card {
+  background: var(--bg-sidebar-hover);
+}
+
+[data-theme="dark"] .anomaly-card:hover {
+  background: #263346;
+}
+
+[data-theme="dark"] .settings-box {
+  background: var(--border);
+  border-color: var(--border);
+}
+
+[data-theme="dark"] .settings-box div {
+  background: var(--bg-surface);
+}
+
+[data-theme="dark"] .settings-box div:hover {
+  background: var(--bg-body);
+}
+
+[data-theme="dark"] .notice {
+  background: var(--warning-bg);
+  border-color: #92400e;
+  color: #fbbf24;
+}
+
+[data-theme="dark"] .notice p {
+  color: #fcd34d;
+}
+
+[data-theme="dark"] .recharts-tooltip-wrapper {
+  outline: none;
+}
+
+[data-theme="dark"] .recharts-tooltip-content {
+  background: var(--bg-surface) !important;
+  border-color: var(--border) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+[data-theme="dark"] .recharts-legend-item-text {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .recharts-cartesian-grid-horizontal line,
+[data-theme="dark"] .recharts-cartesian-grid-vertical line {
+  stroke: var(--border) !important;
+}
+
+[data-theme="dark"] .recharts-text {
+  fill: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .recharts-xAxis .recharts-text,
+[data-theme="dark"] .recharts-yAxis .recharts-text {
+  fill: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .secondary-btn {
+  background: var(--bg-surface);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .secondary-btn:hover {
+  background: var(--bg-body);
+  border-color: var(--text-muted);
+}
+
+[data-theme="dark"] .filter {
+  background: var(--bg-surface);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .filter:hover,
+[data-theme="dark"] .filter:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+[data-theme="dark"] .godown-pct {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .live-belt-row {
+  background: var(--bg-sidebar-hover);
+}
+
+[data-theme="dark"] .live-belt-row:hover {
+  background: #263346;
+}
+
+[data-theme="dark"] .modal-card {
+  background: var(--bg-surface);
+  border-color: var(--border);
+}
+
+[data-theme="dark"] .modal-head {
+  border-bottom-color: var(--border);
+}
+
+[data-theme="dark"] .modal-close {
+  background: var(--bg-body);
+  border-color: var(--border);
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .modal-close:hover {
+  background: var(--border-light);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .view-tabs {
+  background: var(--bg-sidebar-hover);
+  border-color: var(--border);
+}
+
+[data-theme="dark"] .view-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+}
+
+[data-theme="dark"] .view-tab.active {
+  background: var(--bg-surface);
+  color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="dark"] .alert-card {
+  background: var(--bg-surface);
+  border-color: var(--border);
+}
+
+[data-theme="dark"] .alert-card:hover {
+  border-color: #475569;
+}
+
+[data-theme="dark"] .alert-summary div {
+  background: var(--bg-surface);
+  border-color: var(--border);
+}
+
+[data-theme="dark"] .alert-summary div:hover {
+  box-shadow: var(--shadow-sm);
+}

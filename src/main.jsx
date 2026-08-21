@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import {
   LayoutDashboard,
@@ -30,6 +30,8 @@ import {
   Eye,
   ChevronDown,
   ChevronUp,
+  Sun,
+  Moon,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -145,6 +147,24 @@ function App() {
   const [page, setPage] = useState("Dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedGodown, setSelectedGodown] = useState(null);
+  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  };
+
+  function ThemeToggle() {
+    return (
+      <button className="theme-toggle" onClick={toggleTheme} title="Toggle theme">
+        {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+      </button>
+    );
+  }
 
   const displayDate = useMemo(() => {
     if (appliedFilter) return appliedFilter.date;
@@ -293,6 +313,7 @@ function App() {
             <p>Live sugar mill production monitoring</p>
           </div>
           <div className="topbar-right">
+            <ThemeToggle />
             <div className="system-status">
               <span className="status-dot"></span> System Online
             </div>
