@@ -32,6 +32,14 @@ import {
   ChevronUp,
   Sun,
   Moon,
+  Sprout,
+  UserRound,
+  LockKeyhole,
+  UsersRound,
+  CircleDollarSign,
+  FileText,
+  LogIn,
+  Wheat,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -335,48 +343,82 @@ function Login({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [captcha, setCaptcha] = useState(() => makeCaptcha());
+  const [captchaEntry, setCaptchaEntry] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
+    if (captchaEntry.trim().toUpperCase() !== captcha) {
+      setError("Security code does not match. Please try again.");
+      setCaptcha(makeCaptcha());
+      setCaptchaEntry("");
+      return;
+    }
     const result = await login(email, password);
     if (result.success) onLogin();
-    else setError("Invalid admin email or password.");
+    else {
+      setError("Invalid admin email or password.");
+      setCaptcha(makeCaptcha());
+      setCaptchaEntry("");
+    }
   };
 
   return (
     <div className="login-page">
       <div className="login-card">
-        <div className="login-logo">SM</div>
-        <div className="login-title">Sugar Mill</div>
-        <p className="login-subtitle">Bag Counting & Production Monitoring</p>
-        <form onSubmit={submit}>
-          <label>Admin Email</label>
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="admin@sugarmill.local"
-            type="email"
-          />
-          <label>Password</label>
-          <input
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter password"
-            type="password"
-          />
-          {error && <div className="error-box">{error}</div>}
-          <button className="primary-btn" type="submit">
-            Sign in to Dashboard <ChevronRight size={18} />
-          </button>
-        </form>
-        <div className="demo-credentials">
-          <strong>Demo credentials</strong>
-          <span>{ADMIN_EMAIL}</span>
-          <span>{ADMIN_PASSWORD}</span>
-        </div>
+        <section className="login-brand-panel">
+          <Sprout className="login-decor decor-sprout" size={54} />
+          <Wheat className="login-decor decor-wheat" size={54} />
+          <span className="login-orb orb-one" /><span className="login-orb orb-two" />
+          <div className="brand-content">
+            <Factory className="login-factory" size={54} fill="currentColor" />
+            <h1>Sugar Mill</h1>
+            <p>Bag Counting &amp; Production<br />Monitoring System</p>
+            <ul>
+              <li><UsersRound size={21} /> Grower Management</li>
+              <li><TrendingUp size={21} /> Production Tracking</li>
+              <li><CircleDollarSign size={21} /> Payment Processing</li>
+              <li><FileText size={21} /> Detailed Reports</li>
+            </ul>
+          </div>
+        </section>
+        <section className="login-form-panel">
+          <header className="login-heading">
+            <h2><Sprout size={34} fill="currentColor" /> Welcome Back</h2>
+            <p>Sign in to your account</p>
+          </header>
+          <form onSubmit={submit}>
+            <label className="sr-only" htmlFor="login-email">Email</label>
+            <div className="login-input-row">
+              <span><UserRound size={19} /></span>
+              <input id="login-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Admin email" type="email" autoComplete="username" required />
+            </div>
+            <label className="sr-only" htmlFor="login-password">Password</label>
+            <div className="login-input-row">
+              <span><LockKeyhole size={18} /></span>
+              <input id="login-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" autoComplete="current-password" required />
+            </div>
+            <label className="captcha-label" htmlFor="captcha-entry">Captcha Code</label>
+            <div className="captcha-row">
+              <div className="captcha-art" aria-label={`Captcha: ${captcha}`}>{captcha.split("").map((char, i) => <span key={i}>{char}</span>)}</div>
+              <button className="captcha-refresh" type="button" aria-label="Refresh captcha" onClick={() => { setCaptcha(makeCaptcha()); setCaptchaEntry(""); }}><RefreshCw size={20} /></button>
+              <input id="captcha-entry" className="captcha-entry" value={captchaEntry} onChange={(e) => setCaptchaEntry(e.target.value)} placeholder="SECURITY CODE*" autoComplete="off" required />
+            </div>
+            {error && <div className="error-box" role="alert">{error}</div>}
+            <label className="remember-row"><input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} /> Remember me</label>
+            <button className="primary-btn" type="submit"><LogIn size={20} /> Sign In</button>
+          </form>
+          <div className="login-footer">Demo: {ADMIN_EMAIL} · {ADMIN_PASSWORD}</div>
+        </section>
       </div>
     </div>
   );
+}
+
+function makeCaptcha() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from({ length: 5 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
 function StatCard({ icon: Icon, label, value, sub, trend }) {
