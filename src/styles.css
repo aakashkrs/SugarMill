@@ -2657,3 +2657,216 @@ button {
     padding: 18px 16px;
   }
 }
+.dashboard-live-camera {
+  margin-bottom: 22px;
+}
+
+.empty-data-state {
+  width: 100%;
+  padding: 18px;
+  border: 1px dashed var(--border, #dbe2ea);
+  border-radius: 10px;
+  color: var(--text-secondary, #64748b);
+  font-size: 13px;
+  text-align: center;
+}
+
+.camera-connect-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.camera-connect-form input {
+  flex: 1 1 360px;
+  min-width: 0;
+  padding: 11px 13px;
+  border: 1px solid var(--border, #dbe2ea);
+  border-radius: 9px;
+  background: var(--bg-surface, #fff);
+  color: var(--text-primary, #0f172a);
+  font: inherit;
+}
+
+.camera-connect-form .primary-btn,
+.camera-connect-form .secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 9px;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: none;
+}
+
+.camera-live-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+  margin: 8px 0 13px;
+  color: var(--text-secondary, #64748b);
+  font-size: 13px;
+}
+
+.camera-live-stats strong {
+  color: var(--text-primary, #0f172a);
+  font-size: 15px;
+}
+
+.camera-line-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 11px;
+  color: var(--text-secondary, #64748b);
+  font-size: 12px;
+}
+
+.camera-line-tools .secondary-btn:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.camera-line-tools .text-button {
+  color: var(--danger, #dc2626);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.live-status,
+.feed-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+}
+
+.live-status i,
+.feed-live-badge i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+
+.live-status.online i,
+.feed-live-badge.on i {
+  background: #22c55e;
+  box-shadow: 0 0 0 3px #22c55328;
+}
+
+.live-status.offline { color: #dc2626; }
+.live-status.online { color: #15803d; }
+
+.camera-feed-frame {
+  position: relative;
+  display: flex;
+  min-height: 300px;
+  max-height: 620px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #0b1220;
+  touch-action: none;
+  user-select: none;
+}
+
+.camera-feed-frame.drawing-line { cursor: crosshair; }
+
+.camera-video-canvas {
+  position: relative;
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  max-height: 620px;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+
+.camera-video-canvas > img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 620px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.camera-feed-empty {
+  display: flex;
+  min-height: 300px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 26px;
+  color: #cbd5e1;
+  text-align: center;
+}
+
+.camera-feed-empty strong { color: #f8fafc; }
+.camera-feed-empty span { max-width: 420px; font-size: 13px; }
+
+.counting-line-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.counting-line-overlay line {
+  stroke: #facc15;
+  stroke-width: .006;
+  stroke-dasharray: .015 .008;
+  vector-effect: non-scaling-stroke;
+}
+
+.counting-line-overlay.preview line {
+  stroke: #38bdf8;
+  stroke-width: .008;
+  stroke-dasharray: .02 .012;
+}
+
+.feed-live-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: #111827d9;
+  color: white;
+}
+
+.camera-feed-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 18px;
+  padding-top: 11px;
+  color: var(--text-secondary, #64748b);
+  font-size: 12px;
+}
+
+.camera-feed-message {
+  margin: 10px 0 0;
+  color: var(--text-secondary, #64748b);
+  font-size: 13px;
+}
+
+@media (max-width: 600px) {
+  .camera-feed-frame { min-height: 220px; }
+  .camera-feed-empty { min-height: 220px; }
+  .camera-connect-form .primary-btn,
+  .camera-connect-form .secondary-btn { flex: 1; }
+}

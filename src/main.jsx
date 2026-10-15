@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import ReactDOM from "react-dom/client";
 import {
   LayoutDashboard,
@@ -54,25 +54,16 @@ import {
   Legend,
 } from "recharts";
 import "./styles.css";
-import {
-  mockSummary,
-  hourlyProduction,
-  yesterdayProduction,
-  dailyProduction,
-  allTimeProduction,
-  godowns,
-  belts,
-  cameras,
-  alerts,
-  recentEvents,
-  anomalies,
-  peakHour,
-  downtime,
-} from "./data/mockData";
-import { login } from "./services/api";
+import { emptyDashboard } from "./data/emptyDashboard";
+import { getDashboardSummary, login } from "./services/api";
 
 const ADMIN_EMAIL = "admin@sugarmill.local";
 const ADMIN_PASSWORD = "Admin@123";
+
+function localDateInputValue() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
 
 function getTimeRangeDefaults(range) {
   const now = new Date();
@@ -112,23 +103,26 @@ function getTimeRangeDefaults(range) {
 }
 
 function App() {
-  const [filterDate, setFilterDate] = useState("2026-08-12");
+  const [filterDate, setFilterDate] = useState(localDateInputValue);
   const [timeRange, setTimeRange] = useState("whole-day");
   const [fromTime, setFromTime] = useState("00:00");
   const [toTime, setToTime] = useState("23:59");
   const [appliedFilter, setAppliedFilter] = useState(null);
 
   const applyFilter = () => {
+    const range = timeRange === "custom"
+      ? { from: fromTime, to: toTime }
+      : getTimeRangeDefaults(timeRange);
     setAppliedFilter({
       date: filterDate,
       timeRange,
-      from: timeRange === "custom" ? fromTime : "00:00",
-      to: timeRange === "custom" ? toTime : "23:59",
+      from: range.from,
+      to: range.to,
     });
   };
 
   const clearFilter = () => {
-    setFilterDate("2026-08-12");
+    setFilterDate(localDateInputValue());
     setTimeRange("whole-day");
     setFromTime("00:00");
     setToTime("23:59");
@@ -156,11 +150,32 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedGodown, setSelectedGodown] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
+  const [dashboardData, setDashboardData] = useState(emptyDashboard);
+  const [dashboardError, setDashboardError] = useState("");
+  const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const data = await getDashboardSummary(appliedFilter);
+        if (active) {
+          setDashboardData({ ...emptyDashboard, ...data });
+          setDashboardError("");
+        }
+      } catch (error) {
+        if (active) setDashboardError(error.message || "Dashboard API unavailable");
+      }
+    };
+    load();
+    const timer = window.setInterval(load, 2000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [refreshToken, appliedFilter]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
@@ -191,12 +206,12 @@ function App() {
   const logout = () => setAuthenticated(false);
 
   const pages = {
-    Dashboard: <Dashboard filter={appliedFilter} onGodownClick={setSelectedGodown} />,
-    Godowns: <Godowns onGodownClick={setSelectedGodown} />,
-    Production: <Production />,
-    Belts: <Belts />,
-    Alerts: <Alerts />,
-    Settings: <SettingsPage />,
+    Dashboard: <Dashboard data={dashboardData} dataError={dashboardError} filter={appliedFilter} onRefresh={() => setRefreshToken((v) => v + 1)} onGodownClick={setSelectedGodown} />,
+    Godowns: <Godowns data={dashboardData} onGodownClick={setSelectedGodown} />,
+    Production: <Production data={dashboardData} />,
+    Belts: <Belts data={dashboardData} />,
+    Alerts: <Alerts data={dashboardData} />,
+    Settings: <SettingsPage apiError={dashboardError} apiReady={Boolean(dashboardData.generatedAt)} />,
   };
 
   return (
@@ -323,7 +338,8 @@ function App() {
           <div className="topbar-right">
             <ThemeToggle />
             <div className="system-status">
-              <span className="status-dot"></span> System Online
+              <span className={`status-dot ${dashboardData.cameraStatus?.connected ? "" : "offline"}`}></span>
+              {dashboardData.cameraStatus?.connected ? "Camera Online" : "Camera Offline"}
             </div>
             <div className="date-chip">{displayDate}</div>
             <div className="avatar">A</div>
@@ -437,22 +453,212 @@ function StatCard({ icon: Icon, label, value, sub, trend }) {
   );
 }
 
-function Dashboard({ filter, onGodownClick }) {
-  const running = useMemo(
-    () => belts.filter((b) => b.status === "Running").length,
-    []
+function LiveCameraPanel() {
+  const [rtspUrl, setRtspUrl] = useState("");
+  const [cameraStatus, setCameraStatus] = useState({ connected: false, count: 0, fps: 0, detections: 0, error: "" });
+  const [streamKey, setStreamKey] = useState(0);
+  const [line, setLine] = useState(null);
+  const [draftLine, setDraftLine] = useState(null);
+  const [drawing, setDrawing] = useState(false);
+  const [message, setMessage] = useState("");
+  const imageRef = useRef(null);
+  const draftLineRef = useRef(null);
+  const drawingRef = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const response = await fetch("/api/status");
+        const data = await response.json();
+        if (!active) return;
+        setCameraStatus(data);
+        setLine(Array.isArray(data.line) ? data.line : null);
+        if (data.state === "connecting" || data.state === "loading_model") {
+          setMessage(data.error || "Connecting to camera...");
+        } else if (data.state === "error") {
+          setMessage(data.error || "Camera connection failed.");
+        } else if (data.state === "live") {
+          setMessage((previous) => previous.startsWith("Connecting") || previous.startsWith("Camera connected;") ? "" : previous);
+        }
+      } catch {
+        if (active) {
+          setCameraStatus((prev) => ({ ...prev, connected: false, state: "error", error: "Detection service is not running" }));
+          setMessage("Detection service is not running. Start the backend API and try again.");
+        }
+      }
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 1000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
+
+  const connect = async (e) => {
+    e.preventDefault();
+    setMessage("Connecting to camera...");
+    try {
+      const response = await fetch("/api/camera/connect", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rtsp_url: rtspUrl }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Could not connect to camera");
+      setMessage("Connecting to camera...");
+      setStreamKey((key) => key + 1);
+    } catch (error) { setMessage(error.message); }
+  };
+
+  const disconnect = async () => {
+    await fetch("/api/camera/disconnect", { method: "POST" }).catch(() => {});
+    drawingRef.current = false;
+    draftLineRef.current = null;
+    setDrawing(false);
+    setDraftLine(null);
+    setCameraStatus((prev) => ({ ...prev, connected: false, state: "disconnected" }));
+    setMessage("");
+  };
+
+  const pointFromEvent = (event, clamp = false) => {
+    const image = imageRef.current;
+    if (!image || !image.naturalWidth || !image.naturalHeight) return null;
+    const rect = image.getBoundingClientRect();
+    const scale = Math.min(rect.width / image.naturalWidth, rect.height / image.naturalHeight);
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    const left = rect.left + (rect.width - width) / 2;
+    const top = rect.top + (rect.height - height) / 2;
+    let x = (event.clientX - left) / width;
+    let y = (event.clientY - top) / height;
+    if (!clamp && (x < 0 || x > 1 || y < 0 || y > 1)) return null;
+    x = Math.max(0, Math.min(1, x));
+    y = Math.max(0, Math.min(1, y));
+    return [x, y];
+  };
+  const beginLine = (event) => {
+    if (!drawingRef.current) return;
+    const point = pointFromEvent(event);
+    if (!point) return;
+    const [x, y] = point;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const draft = [x, y, x, y];
+    draftLineRef.current = draft;
+    setDraftLine(draft);
+  };
+  const moveLine = (event) => {
+    if (!draftLineRef.current) return;
+    const point = pointFromEvent(event, true);
+    if (!point) return;
+    const draft = [draftLineRef.current[0], draftLineRef.current[1], point[0], point[1]];
+    draftLineRef.current = draft;
+    setDraftLine(draft);
+  };
+  const finishLine = async (event) => {
+    const draft = draftLineRef.current;
+    if (!draft) return;
+    const point = pointFromEvent(event, true);
+    if (!point) return;
+    const nextLine = [draft[0], draft[1], point[0], point[1]];
+    const image = imageRef.current;
+    const rect = image?.getBoundingClientRect();
+    if (rect && Math.hypot((nextLine[2] - nextLine[0]) * rect.width,
+      (nextLine[3] - nextLine[1]) * rect.height) < 12) {
+      draftLineRef.current = null;
+      setDraftLine(null);
+      setMessage("Drag farther across the video to place a counting line.");
+      return;
+    }
+    draftLineRef.current = null;
+    setDraftLine(null);
+    try {
+      const response = await fetch("/api/camera/line", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ x1: nextLine[0], y1: nextLine[1], x2: nextLine[2], y2: nextLine[3] }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Could not save counting line");
+      setLine(nextLine);
+      drawingRef.current = false;
+      setDrawing(false);
+      setMessage("Counting line saved. Each tracked bag is counted once when it crosses the line.");
+    } catch (error) {
+      setDrawing(true);
+      drawingRef.current = true;
+      setMessage(error.message);
+    }
+  };
+
+  const cancelLine = () => {
+    draftLineRef.current = null;
+    setDraftLine(null);
+    setMessage("Line placement cancelled. Try dragging again.");
+  };
+
+  const toggleDrawing = () => {
+    const next = !drawingRef.current;
+    drawingRef.current = next;
+    setDrawing(next);
+    draftLineRef.current = null;
+    setDraftLine(null);
+    setMessage(next ? "Drag from one side of the conveyor to the other." : "Line drawing cancelled.");
+  };
+
+  const clearLine = async () => {
+    try {
+      const response = await fetch("/api/camera/line", { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Could not clear counting line");
+      setLine(null);
+      setMessage("Counting line cleared. Counting is paused until you add a new line.");
+    } catch (error) { setMessage(error.message); }
+  };
+
+  const visibleLine = draftLine || line;
+  const feedStarting = cameraStatus.state === "connecting" || cameraStatus.state === "loading_model";
+  const statusLabel = cameraStatus.connected ? "LIVE" : feedStarting ? "CONNECTING" : cameraStatus.error ? "OFFLINE" : "DISCONNECTED";
+  return (
+    <Panel title="Live Camera Feed" subtitle="RTSP camera with YOLO detections and line-crossing count">
+      <form className="camera-connect-form" onSubmit={connect}>
+        <input aria-label="RTSP camera URL" type="text" autoComplete="off" autoCapitalize="off" spellCheck="false" placeholder="RTSP URL (rtsp://user:password@camera/stream)" value={rtspUrl} onChange={(e) => setRtspUrl(e.target.value)} required />
+        {cameraStatus.connected || feedStarting
+          ? <button className="secondary-btn" type="button" onClick={disconnect}>Disconnect</button>
+          : <button className="primary-btn" type="submit">Connect camera</button>}
+        <a className="secondary-btn csv-download" href="/api/events.csv" download>Download CSV</a>
+      </form>
+      <div className="camera-live-stats">
+        <span className={cameraStatus.connected ? "live-status online" : "live-status offline"}><i />{statusLabel}</span>
+        <span><strong>{cameraStatus.count || 0}</strong> bags counted</span>
+        <span><strong>{cameraStatus.detections || 0}</strong> in frame</span>
+        <span><strong>{cameraStatus.fps || 0}</strong> FPS</span>
+      </div>
+      <div className="camera-line-tools">
+        <button className="secondary-btn" type="button" disabled={!cameraStatus.connected} onClick={toggleDrawing}>
+          {drawing ? "Cancel drawing" : line ? "Redraw line" : "Add counting line"}
+        </button>
+        {line && !drawing && <button className="text-button" type="button" onClick={clearLine}>Clear line</button>}
+        <span>{drawing ? "Drag across the feed to place your counting line." : line ? "Line is active; bags crossing it are counted once." : "No line set. Counting is paused."}</span>
+      </div>
+      <div className={`camera-feed-frame ${drawing ? "drawing-line" : ""}`}>
+        {cameraStatus.connected || feedStarting
+          ? <div className="camera-video-canvas" onPointerDown={cameraStatus.connected && drawing ? beginLine : undefined} onPointerMove={moveLine} onPointerUp={finishLine} onPointerCancel={cancelLine}>
+              <img ref={imageRef} key={streamKey} draggable="false" src={`/api/camera/stream.mjpg?session=${streamKey}`} alt="Live RTSP stream with model detections" onError={() => setMessage("Live video stream failed. Check the backend status and camera connection.")} />
+              {visibleLine && <svg className={`counting-line-overlay ${draftLine ? "preview" : ""}`} viewBox="0 0 1 1" preserveAspectRatio="none"><line x1={visibleLine[0]} y1={visibleLine[1]} x2={visibleLine[2]} y2={visibleLine[3]} /></svg>}
+            </div>
+          : <div className="camera-feed-empty"><Camera size={36} /><strong>Camera feed will appear here</strong><span>Enter the RTSP URL and connect to start live detection.</span></div>}
+        <span className={`feed-live-badge ${cameraStatus.connected ? "on" : ""}`}><i />{statusLabel}</span>
+      </div>
+      <div className="camera-feed-footer"><span>Enable “Add counting line”, then drag on the video.</span><span>Counts are saved to CSV after a tracked bag crosses your line.</span></div>
+      {(message || cameraStatus.error) && <p className="camera-feed-message">{message || cameraStatus.error}</p>}
+    </Panel>
   );
-  const slow = useMemo(
-    () => belts.filter((b) => b.status === "Slow").length,
-    []
-  );
-  const stopped = useMemo(
-    () => belts.filter((b) => b.status === "Stopped").length,
-    []
-  );
+}
+
+function Dashboard({ data, dataError, filter, onRefresh, onGodownClick }) {
+  const { summary, hourlyProduction, yesterdayProduction, godowns, belts, cameras, anomalies, recentEvents, peakHour, downtime } = data;
+  const selectedDateLabel = new Date(`${data.focusDate || filter?.date || localDateInputValue()}T00:00:00`).toLocaleDateString("en", { month: "short", day: "numeric" });
   const onlineCameras = useMemo(
     () => cameras.filter((c) => c.status === "Online").length,
-    []
+    [cameras]
   );
 
   const mergedHourly = useMemo(
@@ -462,12 +668,7 @@ function Dashboard({ filter, onGodownClick }) {
         today: h.bags,
         yesterday: yesterdayProduction[i]?.bags || 0,
       })),
-    []
-  );
-
-  const maxBags = useMemo(
-    () => Math.max(...hourlyProduction.map((h) => h.bags)),
-    []
+    [hourlyProduction, yesterdayProduction]
   );
 
   return (
@@ -488,23 +689,27 @@ function Dashboard({ filter, onGodownClick }) {
           <h2>Factory Overview</h2>
           <p>Monitor bag counting, production and conveyor performance.</p>
         </div>
-        <button className="secondary-btn">
+        <button className="secondary-btn" onClick={onRefresh}>
           <RefreshCw size={16} /> Refresh
         </button>
       </div>
 
+      {dataError && <div className="empty-data-state" role="alert">Live dashboard data is unavailable: {dataError}. Start the Python API to load CSV records.</div>}
+
+      <div className="dashboard-live-camera"><LiveCameraPanel /></div>
+
       <div className="kpi-grid">
         <StatCard
           icon={Package}
-          label="Total Bags"
-          value={mockSummary.totalBags.toLocaleString()}
-          sub="Across all godowns"
+          label="Bags in Selected Period"
+          value={summary.totalBags.toLocaleString()}
+          sub={`${summary.allTimeBags.toLocaleString()} recorded all time`}
         />
         <StatCard
           icon={Gauge}
           label="Bags / Hour"
-          value={`${mockSummary.rate.toLocaleString()}`}
-          sub={`${mockSummary.perMinute} bags/min`}
+          value={`${summary.rate.toLocaleString()}`}
+          sub={summary.rateLabel || `${summary.perMinute} crossed in the last minute`}
         />
         <StatCard
           icon={Clock3}
@@ -514,20 +719,20 @@ function Dashboard({ filter, onGodownClick }) {
         />
         <StatCard
           icon={Activity}
-          label="Active Belts"
-          value={`${running}/${belts.length}`}
-          sub={`${slow} slow · ${stopped} stopped`}
+          label="Camera Sources Online"
+          value={`${onlineCameras}/${cameras.length}`}
+          sub={cameras.length ? "Live camera status" : "No camera configured"}
         />
         <StatCard
           icon={CircleOff}
           label="Downtime"
-          value={`${downtime.today} min`}
-          sub={`vs ${downtime.yesterday} min yesterday`}
+          value={downtime.today == null ? "—" : `${downtime.today} min`}
+          sub={downtime.today == null ? "No downtime history in CSV yet" : "Recorded for the selected date"}
         />
       </div>
 
       <div className="grid-2">
-        <Panel title="Hourly Production" subtitle="Today vs Yesterday comparison">
+        <Panel title="Hourly Production" subtitle={`Camera crossing counts from CSV; compare ${selectedDateLabel} with the previous day`}>
           <div className="chart-wrap">
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={mergedHourly}>
@@ -552,7 +757,7 @@ function Dashboard({ filter, onGodownClick }) {
                   stroke="#2563eb"
                   strokeWidth={2.5}
                   fill="url(#todayFill)"
-                  name="Today"
+                  name={selectedDateLabel}
                 />
                 <Area
                   type="monotone"
@@ -560,15 +765,16 @@ function Dashboard({ filter, onGodownClick }) {
                   stroke="#94a3b8"
                   strokeWidth={2}
                   fill="url(#yesterdayFill)"
-                  name="Yesterday"
+                  name="Previous day"
                 />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </Panel>
 
-        <Panel title="Godown Production" subtitle="Click a row for details">
+        <Panel title="Godown Production" subtitle="Values appear when a camera is assigned to a godown">
           <div className="godown-list">
+            {godowns.length === 0 && <div className="empty-data-state">No godown mapping is configured for this camera.</div>}
             {godowns.map((g) => {
               const pct = Math.min(100, Math.round((g.bags / g.target) * 100));
               return (
@@ -601,8 +807,9 @@ function Dashboard({ filter, onGodownClick }) {
       </div>
 
       <div className="grid-2">
-        <Panel title="Live Belt Status" subtitle="Current operating condition">
+        <Panel title="Live Camera Source" subtitle="Status and counts recorded from the RTSP input">
           <div className="live-belts">
+            {belts.length === 0 && <div className="empty-data-state">No camera events are recorded yet.</div>}
             {belts.map((b) => (
               <div className="live-belt-row" key={b.id}>
                 <div className="live-belt-main">
@@ -621,6 +828,7 @@ function Dashboard({ filter, onGodownClick }) {
 
         <Panel title="Camera / Counting Health" subtitle="System online status">
           <div className="camera-grid">
+            {cameras.length === 0 && <div className="empty-data-state">Connect a camera to show its health.</div>}
             {cameras.map((c) => (
               <CameraCard key={c.id} camera={c} />
             ))}
@@ -629,15 +837,16 @@ function Dashboard({ filter, onGodownClick }) {
       </div>
 
       <div className="grid-2">
-        <Panel title="Alerts & Anomalies" subtitle="Belt stoppage, production, camera issues">
+        <Panel title="Alerts & Anomalies" subtitle="Camera service events recorded in CSV">
           <div className="anomaly-list">
+            {anomalies.length === 0 && <div className="empty-data-state">No camera events have been recorded yet.</div>}
             {anomalies.slice(0, 4).map((a) => (
               <AnomalyCard key={a.id} anomaly={a} />
             ))}
           </div>
         </Panel>
 
-        <Panel title="Peak Production Hour" subtitle="Best performing hour today">
+        <Panel title="Peak Production Hour" subtitle={`Calculated from ${selectedDateLabel} recorded bag crossings`}>
           <div className="peak-hour-card">
             <div className="peak-hour-icon">
               <TrendingUp size={28} />
@@ -673,11 +882,23 @@ function Dashboard({ filter, onGodownClick }) {
           </div>
         </Panel>
       </div>
+      <div className="dashboard-recent-events">
+        <Panel title="Recent Bag Crossings" subtitle="Latest counted events from camera_events.csv">
+          {recentEvents.length === 0
+            ? <div className="empty-data-state">No bags have crossed the counting line in this period.</div>
+            : <div className="recent-crossing-list">{recentEvents.slice(0, 10).map((event) => (
+                <div className="recent-crossing-row" key={event.id}>
+                  <strong>{event.bag}</strong><span>{event.location}</span><time>{event.time}</time>
+                </div>
+              ))}</div>}
+        </Panel>
+      </div>
     </>
   );
 }
 
-function Godowns({ onGodownClick }) {
+function Godowns({ data, onGodownClick }) {
+  const { godowns } = data;
   return (
     <>
       <div className="page-heading">
@@ -687,6 +908,7 @@ function Godowns({ onGodownClick }) {
         </div>
       </div>
       <div className="godown-cards">
+        {godowns.length === 0 && <div className="empty-data-state">No camera-to-godown mapping is configured. Live counts are available under the camera source.</div>}
         {godowns.map((g) => (
           <div
             className="large-godown clickable"
@@ -780,13 +1002,14 @@ function GodownModal({ godown, onClose }) {
   );
 }
 
-function Production() {
+function Production({ data }) {
+  const { hourlyProduction, dailyProduction, allTimeProduction, summary, cameras } = data;
   const [view, setView] = useState("daily");
 
   const getChartData = () => {
     switch (view) {
       case "hourly":
-        return hourlyProduction.map((h) => ({ hour: h.hour, bags: h.bags }));
+        return hourlyProduction;
       case "all-time":
         return allTimeProduction;
       default:
@@ -801,7 +1024,7 @@ function Production() {
       <div className="page-heading">
         <div>
           <h2>Production Analytics</h2>
-          <p>Track production trends and target performance.</p>
+          <p>Production trends calculated from recorded camera crossings.</p>
         </div>
         <div className="view-tabs">
           <button
@@ -824,7 +1047,7 @@ function Production() {
           </button>
         </div>
       </div>
-      <Panel title="Production Trend" subtitle="Historical bag count">
+      <Panel title="Production Trend" subtitle="Historical bag crossings stored in CSV">
         <div className="chart-wrap tall">
           <ResponsiveContainer width="100%" height={340}>
             <BarChart data={getChartData()}>
@@ -841,43 +1064,45 @@ function Production() {
       <div className="stats-grid compact">
         <StatCard
           icon={Package}
-          label="Today's Production"
-          value={mockSummary.totalBags.toLocaleString()}
+          label="Selected Period Production"
+          value={summary.totalBags.toLocaleString()}
           sub="bags"
         />
         <StatCard
           icon={TrendingUp}
-          label="Average Daily"
-          value="23,555"
+          label="Average Recorded Day"
+          value={(dailyProduction.length ? Math.round(dailyProduction.reduce((sum, row) => sum + row.bags, 0) / dailyProduction.length) : 0).toLocaleString()}
           sub="bags/day"
         />
         <StatCard
           icon={Gauge}
           label="Peak Rate"
-          value="1,420/hr"
-          sub="recorded today"
+          value={`${Math.max(0, ...hourlyProduction.map((row) => row.bags)).toLocaleString()}/hr`}
+          sub="highest recorded hour in selected period"
         />
         <StatCard
           icon={Factory}
-          label="Best Godown"
-          value="Godown 3"
-          sub="8,480 bags"
+          label="Connected Cameras"
+          value={`${cameras.filter((camera) => camera.status === "Online").length}/${cameras.length}`}
+          sub="real camera status"
         />
       </div>
     </>
   );
 }
 
-function Belts() {
+function Belts({ data }) {
+  const { belts } = data;
   return (
     <>
       <div className="page-heading">
         <div>
           <h2>Conveyor Belt Monitoring</h2>
-          <p>Monitor each belt and its counting camera.</p>
+          <p>Camera sources and belt counts recorded in CSV.</p>
         </div>
       </div>
       <div className="belt-grid">
+        {belts.length === 0 && <div className="empty-data-state">No camera events are recorded yet.</div>}
         {belts.map((b) => (
           <div className="belt-card" key={b.id}>
             <div className="belt-head">
@@ -888,7 +1113,7 @@ function Belts() {
               <Status status={b.status} />
             </div>
             <div className="belt-count">
-              {b.bags.toLocaleString()} <small>bags today</small>
+              {b.bags.toLocaleString()} <small>bags in selected period</small>
             </div>
             <div className="belt-info">
               <span>
@@ -911,13 +1136,14 @@ function Belts() {
   );
 }
 
-function Alerts() {
+function Alerts({ data }) {
+  const { alerts } = data;
   return (
     <>
       <div className="page-heading">
         <div>
           <h2>Alerts & Events</h2>
-          <p>Operational alerts generated by the monitoring system.</p>
+          <p>Camera status events read from the event CSV.</p>
         </div>
       </div>
       <div className="alert-summary">
@@ -935,6 +1161,7 @@ function Alerts() {
         </div>
       </div>
       <div className="alert-list">
+        {alerts.length === 0 && <div className="empty-data-state">No camera alerts have been recorded in the CSV yet.</div>}
         {alerts.map((a) => (
           <div className={`alert-card ${a.level}`} key={a.id}>
             <div className="alert-icon">
@@ -961,31 +1188,31 @@ function Alerts() {
   );
 }
 
-function SettingsPage() {
+function SettingsPage({ apiError, apiReady }) {
   return (
     <div className="settings-page">
       <div className="page-heading">
         <div>
           <h2>System Settings</h2>
-          <p>Frontend demo configuration.</p>
+          <p>Live camera and CSV data source.</p>
         </div>
       </div>
       <Panel
-        title="API Integration"
-        subtitle="This frontend is currently using mock data."
+        title="Live Data Service"
+        subtitle="Dashboard metrics are calculated from the camera event CSV."
       >
         <div className="settings-box">
           <div>
             <strong>Data source</strong>
-            <span>Mock data</span>
+            <span>camera_events.csv</span>
           </div>
           <div>
             <strong>Backend API</strong>
-            <span>Not connected</span>
+            <span>{apiError || (apiReady ? "Connected" : "Connecting")}</span>
           </div>
           <div>
-            <strong>Database</strong>
-            <span>Supabase — to be connected later</span>
+            <strong>Refresh interval</strong>
+            <span>2 seconds</span>
           </div>
           <div>
             <strong>Authentication</strong>
@@ -1061,7 +1288,7 @@ function CameraCard({ camera }) {
       </div>
       <div className="camera-card-info">
         <strong>{camera.id}</strong>
-        <span>Belt {camera.belt}</span>
+                <span>{camera.belt}</span>
       </div>
       <div className="camera-card-status">{camera.status}</div>
       {camera.note && <div className="camera-card-note">{camera.note}</div>}

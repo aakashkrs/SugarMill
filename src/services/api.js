@@ -1,6 +1,5 @@
-// API abstraction layer.
-// Currently returns mock/demo authentication.
-// Later replace these functions with fetch/axios calls to your backend API.
+// The dashboard data comes from the local Python API, which reads the event CSV.
+// Login remains the existing local demo login and is separate from production data.
 
 const DEMO_EMAIL = "admin@sugarmill.local";
 const DEMO_PASSWORD = "Admin@123";
@@ -13,24 +12,18 @@ export async function login(email, password) {
   };
 }
 
-export async function getDashboardSummary() {
-  // Later:
-  // const response = await fetch("/api/dashboard/summary");
-  // return response.json();
-}
-
-export async function getGodowns() {
-  // Later: fetch("/api/godowns")
-}
-
-export async function getProduction() {
-  // Later: fetch("/api/production")
-}
-
-export async function getBelts() {
-  // Later: fetch("/api/belts")
-}
-
-export async function getAlerts() {
-  // Later: fetch("/api/alerts")
+export async function getDashboardSummary(filter) {
+  const params = new URLSearchParams();
+  if (filter) {
+    params.set("date", filter.date);
+    params.set("from", filter.from);
+    params.set("to", filter.to);
+  }
+  const query = params.toString();
+  const response = await fetch(`/api/dashboard${query ? `?${query}` : ""}`);
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    throw new Error(result.detail || "Could not load CSV dashboard data");
+  }
+  return response.json();
 }
